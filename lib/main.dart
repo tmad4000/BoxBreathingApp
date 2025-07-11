@@ -1,0 +1,448 @@
+import 'dart:async';
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+void main() {
+  runApp(const BoxBreathingApp());
+}
+
+class BoxBreathingApp extends StatelessWidget {
+  const BoxBreathingApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Box Breathing',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+        fontFamily: 'SF Pro Display',
+      ),
+      home: const BreathingScreen(),
+    );
+  }
+}
+
+class BreathingScreen extends StatefulWidget {
+  const BreathingScreen({Key? key}) : super(key: key);
+
+  @override
+  State<BreathingScreen> createState() => _BreathingScreenState();
+}
+
+class _BreathingScreenState extends State<BreathingScreen>
+    with TickerProviderStateMixin {
+  late AnimationController _animationController;
+  late AnimationController _pulseController;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _pulseAnimation;
+  late Animation<double> _glowAnimation;
+  Timer? _timer;
+  
+  int _currentStep = 0;
+  int _countdown = 4;
+  bool _isRunning = false;
+  
+  final List<String> _instructions = [
+    'Inhale',
+    'Hold',
+    'Exhale',
+    'Hold',
+  ];
+  
+  final List<Color> _stepColors = [
+    const Color(0xFF4FC3F7), // Inhale - Light Blue
+    const Color(0xFF81C784), // Hold - Light Green
+    const Color(0xFFBA68C8), // Exhale - Light Purple
+    const Color(0xFFFFB74D), // Hold - Light Orange
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    );
+    _pulseController = AnimationController(
+      duration: const Duration(milliseconds: 2500),
+      vsync: this,
+    )..repeat(reverse: true);
+    
+    _scaleAnimation = Tween<double>(
+      begin: 0.8,
+      end: 1.4,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _pulseAnimation = Tween<double>(
+      begin: 0.98,
+      end: 1.02,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+    
+    _glowAnimation = Tween<double>(
+      begin: 0.3,
+      end: 0.8,
+    ).animate(CurvedAnimation(
+      parent: _pulseController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    _pulseController.dispose();
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _startBreathing() {
+    setState(() {
+      _isRunning = true;
+      _currentStep = 0;
+      _countdown = 4;
+    });
+    _runCycle();
+  }
+
+  void _pauseBreathing() {
+    setState(() {
+      _isRunning = false;
+    });
+    _timer?.cancel();
+    _animationController.stop();
+  }
+
+  void _resetBreathing() {
+    setState(() {
+      _isRunning = false;
+      _currentStep = 0;
+      _countdown = 4;
+    });
+    _timer?.cancel();
+    _animationController.reset();
+  }
+
+  void _runCycle() {
+    if (!_isRunning) return;
+
+    // Start animation for inhale and exhale
+    if (_currentStep == 0) {
+      _animationController.forward();
+    } else if (_currentStep == 2) {
+      _animationController.reverse();
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_isRunning) {
+        timer.cancel();
+        return;
+      }
+
+      setState(() {
+        _countdown--;
+      });
+
+      if (_countdown == 0) {
+        timer.cancel();
+        setState(() {
+          _currentStep = (_currentStep + 1) % 4;
+          _countdown = 4;
+        });
+        _runCycle();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.transparent,
+      appBar: AppBar(
+        title: const Text(
+          'Box Breathing',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w300,
+            fontSize: 18,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle.light,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF0F0C29),
+              Color(0xFF24243e),
+              Color(0xFF302b63),
+              Color(0xFF24243e),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  
+                  // Title
+                  const Text(
+                    'Find Your Breath',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w200,
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  Text(
+                    'Breathe • Hold • Release • Rest',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w300,
+                      color: Colors.white.withOpacity(0.7),
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 60),
+                  
+                  // Breathing visualization
+                  AnimatedBuilder(
+                    animation: Listenable.merge([_scaleAnimation, _pulseAnimation, _glowAnimation]),
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _scaleAnimation.value * _pulseAnimation.value,
+                        child: Container(
+                          width: 280,
+                          height: 280,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                _stepColors[_currentStep].withOpacity(0.8),
+                                _stepColors[_currentStep].withOpacity(0.4),
+                                _stepColors[_currentStep].withOpacity(0.1),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.4, 0.8, 1.0],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: _stepColors[_currentStep].withOpacity(_glowAnimation.value),
+                                blurRadius: 40,
+                                spreadRadius: 10,
+                              ),
+                              BoxShadow(
+                                color: _stepColors[_currentStep].withOpacity(0.3),
+                                blurRadius: 80,
+                                spreadRadius: 20,
+                              ),
+                            ],
+                          ),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.2),
+                                width: 1,
+                              ),
+                            ),
+                            child: Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    _instructions[_currentStep],
+                                    style: const TextStyle(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w300,
+                                      color: Colors.white,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _countdown.toString(),
+                                    style: const TextStyle(
+                                      fontSize: 64,
+                                      fontWeight: FontWeight.w100,
+                                      color: Colors.white,
+                                      letterSpacing: 2.0,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  
+                  const SizedBox(height: 80),
+                  
+                  // Control buttons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildModernButton(
+                        onPressed: _isRunning ? null : _startBreathing,
+                        icon: Icons.play_arrow_rounded,
+                        label: 'Start',
+                        color: const Color(0xFF4FC3F7),
+                        isEnabled: !_isRunning,
+                      ),
+                      _buildModernButton(
+                        onPressed: _isRunning ? _pauseBreathing : null,
+                        icon: Icons.pause_rounded,
+                        label: 'Pause',
+                        color: const Color(0xFFFFB74D),
+                        isEnabled: _isRunning,
+                      ),
+                      _buildModernButton(
+                        onPressed: _resetBreathing,
+                        icon: Icons.refresh_rounded,
+                        label: 'Reset',
+                        color: const Color(0xFFBA68C8),
+                        isEnabled: true,
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 60),
+                  
+                  // Instructions
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Text(
+                          'The Art of Mindful Breathing',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white.withOpacity(0.9),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Box breathing is a powerful technique used by Navy SEALs and meditation practitioners to reduce stress and enhance focus. Follow the gentle rhythm of expansion and contraction.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w300,
+                            color: Colors.white.withOpacity(0.7),
+                            height: 1.6,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildModernButton({
+    required VoidCallback? onPressed,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required bool isEnabled,
+  }) {
+    return GestureDetector(
+      onTap: onPressed,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: isEnabled
+              ? RadialGradient(
+                  colors: [
+                    color.withOpacity(0.8),
+                    color.withOpacity(0.3),
+                  ],
+                )
+              : RadialGradient(
+                  colors: [
+                    Colors.grey.withOpacity(0.3),
+                    Colors.grey.withOpacity(0.1),
+                  ],
+                ),
+          boxShadow: isEnabled
+              ? [
+                  BoxShadow(
+                    color: color.withOpacity(0.4),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ]
+              : [],
+          border: Border.all(
+            color: isEnabled ? color.withOpacity(0.5) : Colors.grey.withOpacity(0.3),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: isEnabled ? Colors.white : Colors.grey.withOpacity(0.5),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w300,
+                color: isEnabled ? Colors.white : Colors.grey.withOpacity(0.5),
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
