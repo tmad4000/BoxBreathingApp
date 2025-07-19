@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'box_painter.dart';
+import 'audio_controller.dart';
 
 void main() {
   runApp(const BoxBreathingApp());
@@ -47,6 +48,9 @@ class _BreathingScreenState extends State<BreathingScreen>
   int _currentStep = 0;
   int _countdown = 4;
   bool _isRunning = false;
+  
+  final AudioController _audioController = AudioController();
+  bool _soundEnabled = true;
   
   final List<String> _instructions = [
     'Inhale',
@@ -110,6 +114,9 @@ class _BreathingScreenState extends State<BreathingScreen>
       parent: _boxAnimationController,
       curve: Curves.linear,
     ));
+    
+    // Initialize audio controller
+    _audioController.initialize();
   }
 
   @override
@@ -117,6 +124,7 @@ class _BreathingScreenState extends State<BreathingScreen>
     _animationController.dispose();
     _pulseController.dispose();
     _boxAnimationController.dispose();
+    _audioController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -127,6 +135,8 @@ class _BreathingScreenState extends State<BreathingScreen>
       _currentStep = 0;
       _countdown = 4;
     });
+    _audioController.playStartSound();
+    _audioController.startAmbient();
     _runCycle();
   }
 
@@ -136,6 +146,7 @@ class _BreathingScreenState extends State<BreathingScreen>
     });
     _timer?.cancel();
     _animationController.stop();
+    _audioController.playPauseSound();
   }
 
   void _resetBreathing() {
@@ -147,6 +158,7 @@ class _BreathingScreenState extends State<BreathingScreen>
     _timer?.cancel();
     _animationController.reset();
     _boxAnimationController.reset();
+    _audioController.playResetSound();
   }
 
   void _runCycle() {
@@ -162,6 +174,9 @@ class _BreathingScreenState extends State<BreathingScreen>
     // Start box animation for current step
     _boxAnimationController.reset();
     _boxAnimationController.forward();
+    
+    // Play sound for current breathing step
+    _audioController.playBreathingSound(_currentStep);
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isRunning) {
@@ -175,6 +190,8 @@ class _BreathingScreenState extends State<BreathingScreen>
 
       if (_countdown == 0) {
         timer.cancel();
+        // Play transition sound
+        _audioController.playTransitionSound();
         setState(() {
           _currentStep = (_currentStep + 1) % 4;
           _countdown = 4;
@@ -201,6 +218,20 @@ class _BreathingScreenState extends State<BreathingScreen>
         backgroundColor: Colors.transparent,
         elevation: 0,
         systemOverlayStyle: SystemUiOverlayStyle.light,
+        actions: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _soundEnabled = !_soundEnabled;
+                _audioController.setSoundEnabled(_soundEnabled);
+              });
+            },
+            icon: Icon(
+              _soundEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+              color: Colors.white.withOpacity(0.8),
+            ),
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
