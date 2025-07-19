@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'box_painter.dart';
 
 void main() {
   runApp(const BoxBreathingApp());
@@ -36,9 +37,11 @@ class _BreathingScreenState extends State<BreathingScreen>
     with TickerProviderStateMixin {
   late AnimationController _animationController;
   late AnimationController _pulseController;
+  late AnimationController _boxAnimationController;
   late Animation<double> _scaleAnimation;
   late Animation<double> _pulseAnimation;
   late Animation<double> _glowAnimation;
+  late Animation<double> _boxProgressAnimation;
   Timer? _timer;
   
   int _currentStep = 0;
@@ -71,6 +74,11 @@ class _BreathingScreenState extends State<BreathingScreen>
       vsync: this,
     )..repeat(reverse: true);
     
+    _boxAnimationController = AnimationController(
+      duration: const Duration(seconds: 4),
+      vsync: this,
+    );
+    
     _scaleAnimation = Tween<double>(
       begin: 0.8,
       end: 1.4,
@@ -94,12 +102,21 @@ class _BreathingScreenState extends State<BreathingScreen>
       parent: _pulseController,
       curve: Curves.easeInOut,
     ));
+    
+    _boxProgressAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _boxAnimationController,
+      curve: Curves.linear,
+    ));
   }
 
   @override
   void dispose() {
     _animationController.dispose();
     _pulseController.dispose();
+    _boxAnimationController.dispose();
     _timer?.cancel();
     super.dispose();
   }
@@ -129,6 +146,7 @@ class _BreathingScreenState extends State<BreathingScreen>
     });
     _timer?.cancel();
     _animationController.reset();
+    _boxAnimationController.reset();
   }
 
   void _runCycle() {
@@ -140,6 +158,10 @@ class _BreathingScreenState extends State<BreathingScreen>
     } else if (_currentStep == 2) {
       _animationController.reverse();
     }
+    
+    // Start box animation for current step
+    _boxAnimationController.reset();
+    _boxAnimationController.forward();
 
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!_isRunning) {
@@ -227,73 +249,84 @@ class _BreathingScreenState extends State<BreathingScreen>
                   
                   const SizedBox(height: 60),
                   
-                  // Breathing visualization
+                  // Box Breathing visualization
                   AnimatedBuilder(
-                    animation: Listenable.merge([_scaleAnimation, _pulseAnimation, _glowAnimation]),
+                    animation: Listenable.merge([_scaleAnimation, _pulseAnimation, _glowAnimation, _boxProgressAnimation]),
                     builder: (context, child) {
                       return Transform.scale(
-                        scale: _scaleAnimation.value * _pulseAnimation.value,
+                        scale: _pulseAnimation.value,
                         child: Container(
-                          width: 280,
-                          height: 280,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: RadialGradient(
-                              colors: [
-                                _stepColors[_currentStep].withOpacity(0.8),
-                                _stepColors[_currentStep].withOpacity(0.4),
-                                _stepColors[_currentStep].withOpacity(0.1),
-                                Colors.transparent,
-                              ],
-                              stops: const [0.0, 0.4, 0.8, 1.0],
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: _stepColors[_currentStep].withOpacity(_glowAnimation.value),
-                                blurRadius: 40,
-                                spreadRadius: 10,
+                          width: 320,
+                          height: 320,
+                          child: Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              // Background glow
+                              Container(
+                                width: 320,
+                                height: 320,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.rectangle,
+                                  borderRadius: BorderRadius.circular(20),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _stepColors[_currentStep].withOpacity(_glowAnimation.value * 0.5),
+                                      blurRadius: 60,
+                                      spreadRadius: 15,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              BoxShadow(
-                                color: _stepColors[_currentStep].withOpacity(0.3),
-                                blurRadius: 80,
-                                spreadRadius: 20,
+                              
+                              // Animated Box
+                              CustomPaint(
+                                size: const Size(280, 280),
+                                painter: BoxBreathingPainter(
+                                  progress: _boxProgressAnimation.value,
+                                  currentStep: _currentStep,
+                                  stepColor: _stepColors[_currentStep],
+                                  glowIntensity: _glowAnimation.value,
+                                ),
+                              ),
+                              
+                              // Center content
+                              Container(
+                                width: 180,
+                                height: 180,
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      _instructions[_currentStep],
+                                      style: const TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w300,
+                                        color: Colors.white,
+                                        letterSpacing: 1.0,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _countdown.toString(),
+                                      style: const TextStyle(
+                                        fontSize: 64,
+                                        fontWeight: FontWeight.w100,
+                                        color: Colors.white,
+                                        letterSpacing: 2.0,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
-                          ),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.2),
-                                width: 1,
-                              ),
-                            ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    _instructions[_currentStep],
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w300,
-                                      color: Colors.white,
-                                      letterSpacing: 1.0,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _countdown.toString(),
-                                    style: const TextStyle(
-                                      fontSize: 64,
-                                      fontWeight: FontWeight.w100,
-                                      color: Colors.white,
-                                      letterSpacing: 2.0,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
                           ),
                         ),
                       );
@@ -356,7 +389,7 @@ class _BreathingScreenState extends State<BreathingScreen>
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Box breathing is a powerful technique used by Navy SEALs and meditation practitioners to reduce stress and enhance focus. Follow the gentle rhythm of expansion and contraction.',
+                          'Box breathing is a powerful technique used by Navy SEALs and meditation practitioners to reduce stress and enhance focus. Follow the animated box as it traces the four sides of breathing.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontSize: 14,
