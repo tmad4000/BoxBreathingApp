@@ -1,0 +1,48 @@
+{
+  "verifiedAt": "2026-10-27T09:10:24.538846+00:00",
+  "appId": "6748843949",
+  "appName": "Box Breathing Free",
+  "buildId": "9002e71a-0f88-40de-99fe-e17ecc398f17",
+  "version": "1.0.0",
+  "build": "2",
+  "processingState": "VALID",
+  "buildAudienceType": "APP_STORE_ELIGIBLE",
+  "group": {
+    "id": "15a92c07-8a9f-4c5c-87d6-0ed1ee61e74c",
+    "publicLinkLimit": null,
+    "iosBuildsAvailableForAppleSiliconMac": true,
+    "createdDate": "2026-10-27T09:09:44.94Z",
+    "publicLinkEnabled": false,
+    "publicLink": null,
+    "hasAccessToAllBuilds": null,
+    "publicLinkId": null,
+    "isInternalGroup": false,
+    "name": "External Testing",
+    "feedbackEnabled": true,
+    "publicLinkLimitEnabled": false,
+    "iosBuildsAvailableForAppleVision": true
+  },
+  "tester": {
+    "id": "d20eb1ca-5997-4ab3-abc9-9adcc9414f74",
+    "email": "tmad4000@gmail.com",
+    "state": "INVITED"
+  },
+  "associationsVerified": [
+    "build-app",
+    "group-app",
+    "group-build",
+    "group-tester",
+    "review-build"
+  ],
+  "review": {
+    "id": "9002e71a-0f88-40de-99fe-e17ecc398f17",
+    "betaReviewState": "WAITING_FOR_REVIEW",
+    "submittedDate": "2026-10-27T02:09:49-07:00"
+  },
+  "betaDetail": {
+    "autoNotifyEnabled": true,
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "WAITING_FOR_BETA_REVIEW"
+  },
+  "limits": "Tester association is not acceptance or installation. Beta review submission is not approval. Public App Store release remains gated by product readiness. No public link created."
+}
