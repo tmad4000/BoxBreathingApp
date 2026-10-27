@@ -61,20 +61,6 @@ class AudioController {
     }
   }
 
-  Future<void> _playTone(double frequency, int durationMs) async {
-    // Generate a simple tone using AssetSource
-    // For now, we'll play a system sound as fallback
-    try {
-      // Use system sounds that work on all platforms
-      await SystemSound.play(SystemSoundType.click);
-      await HapticFeedback.lightImpact();
-    } catch (e) {
-      print('Audio playback failed: $e');
-      // Fallback to just haptic feedback
-      await HapticFeedback.lightImpact();
-    }
-  }
-
   Future<void> playTransitionSound() async {
     if (!_soundEnabled) return;
     

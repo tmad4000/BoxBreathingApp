@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'box_painter.dart';
@@ -135,6 +134,7 @@ class _BreathingScreenState extends State<BreathingScreen>
       _currentStep = 0;
       _countdown = 4;
     });
+    _animationController.reset();
     _audioController.playStartSound();
     _audioController.startAmbient();
     _runCycle();
@@ -146,6 +146,7 @@ class _BreathingScreenState extends State<BreathingScreen>
     });
     _timer?.cancel();
     _animationController.stop();
+    _boxAnimationController.stop();
     _audioController.playPauseSound();
   }
 
