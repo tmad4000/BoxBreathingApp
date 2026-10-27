@@ -156,4 +156,19 @@ void main() {
         calls.where((call) => call.method == 'playSound').length, before + 1);
     await tester.pumpWidget(const SizedBox());
   });
+  testWidgets('system Reduce Motion never accelerates the breath clock',
+      (tester) async {
+    tester.binding.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(
+        tester.binding.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await launch(tester);
+    await tap(tester, 'Begin 4 rounds');
+    await tester.pump(const Duration(milliseconds: 1000));
+    expect(painter(tester).currentStep, 0);
+    await tester.pump(const Duration(milliseconds: 3001));
+    await tester.pump();
+    expect(painter(tester).currentStep, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
 }

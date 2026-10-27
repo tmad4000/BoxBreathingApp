@@ -359,7 +359,7 @@ class _BreathingScreenState extends State<BreathingScreen>
                         TextButton(
                             onPressed: _copyDiagnostics,
                             child: const Text('Copy diagnostics')),
-                      ])),
+                      ])))),
                 ))));
   }
 
