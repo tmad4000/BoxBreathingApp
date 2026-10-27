@@ -31,6 +31,7 @@ flutter test --machine > test-results.jsonl
 flutter build ios --simulator --debug
 # Capture actual iOS screens and run the native checks:
 flutter drive --driver=test_driver/screenshots.dart --target=integration_test/native_test.dart -d DEVICE_UUID
+scripts/export-app-store-screenshots.sh release/screenshots
 ```
 
 Tests cover full-round boundaries, checkpoint stop/continue, real pause/resume,
