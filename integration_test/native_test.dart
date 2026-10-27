@@ -65,7 +65,10 @@ void main() {
         EnginePhase.sendSemanticsUpdate, const Duration(seconds: 90));
     expect(find.text('Checkpoint reached'), findsOneWidget);
     await screenshot('box-checkpoint');
-    await tester.tap(find.text('Finish'));
+  });
+  testWidgets('native interruptions pause and release audio and keep-awake',
+      (tester) async {
+    app.main();
     await tester.pumpAndSettle();
     for (final event in ['routeLoss', 'interruption']) {
       await tester
