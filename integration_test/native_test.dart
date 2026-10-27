@@ -6,7 +6,10 @@ import 'package:box_breathing_app/main.dart' as app;
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  Future<void> screenshot(String name) async { await binding.takeScreenshot(name); }
+  Future<void> screenshot(String name) async {
+    await binding.takeScreenshot(name);
+  }
+
   const channel = MethodChannel('com.openinfra.boxBreathingApp/session');
   testWidgets('native media sound, preferences, version and keep-awake',
       (tester) async {
@@ -53,12 +56,13 @@ void main() {
     await expectLater(
         channel.invokeMethod<void>('openURL', 'http://invalid.example/'),
         throwsA(isA<PlatformException>()));
-    await tester.tap(find.text('Begin 4 rounds')); await tester.pump();
+    await tester.tap(find.text('Begin 4 rounds'));
+    await tester.pump();
     await tester.pump(const Duration(seconds: 2));
     await screenshot('box-practice');
-    await tester.pumpAndSettle(const Duration(milliseconds: 100), EnginePhase.sendSemanticsUpdate, const Duration(seconds: 90));
+    await tester.pumpAndSettle(const Duration(milliseconds: 100),
+        EnginePhase.sendSemanticsUpdate, const Duration(seconds: 90));
     expect(find.text('Checkpoint reached'), findsOneWidget);
     await screenshot('box-checkpoint');
-
   });
 }
