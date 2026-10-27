@@ -1,0 +1,10 @@
+{
+  "name": "Box Breathing Free",
+  "subtitle": "Simple, free & open source",
+  "promotionalText": "A little space to breathe. Four rounds, a gentle checkpoint, and source code you can inspect, improve and share. No ads, subscriptions or account.",
+  "description": "Free and open source. Box Breathing is a small, focused breathing timer with no ads, subscriptions or account.\n\nFollow four equal phases: inhale, hold, exhale, hold. Each phase lasts four seconds. A clear counter tracks complete rounds, with a natural checkpoint after four rounds—about one minute. Finish there or continue for another four.\n\nPause and resume without losing your place. The screen stays awake while you practise, and the session pauses when you leave the app. Optional sound and haptics work independently. A simple Settings page includes a sound test and version information.\n\nBuilt for a quiet, accessible experience: clear controls, support for larger text, phase announcements and Reduce Motion. Works offline. No session history, analytics or microphone access.\n\nOPEN SOURCE BY DESIGN\nRead the code, report an issue or contribute an improvement. The app is licensed under MIT:\nhttps://github.com/tmad4000/BoxBreathingApp\n\nKeep your breathing comfortable. If you feel dizzy or uncomfortable, stop and breathe normally. This is a general wellness timer, not medical treatment.",
+  "keywords": "box,breathing,breath,timer,rounds,mindfulness,relax,focus,open source,free,offline",
+  "supportUrl": "https://github.com/tmad4000/BoxBreathingApp/issues",
+  "marketingUrl": "https://github.com/tmad4000/BoxBreathingApp",
+  "privacyPolicyUrl": "https://github.com/tmad4000/BoxBreathingApp/blob/main/PRIVACY.md"
+}

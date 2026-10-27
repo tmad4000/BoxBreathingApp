@@ -1,513 +1,572 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'box_painter.dart';
-import 'audio_controller.dart';
 
-void main() {
-  runApp(const BoxBreathingApp());
-}
+void main() => runApp(const BoxBreathingApp());
+
+const _background = Color(0xFF141426);
+const _surface = Color(0xFF202037);
+const _accent = Color(0xFFBBB5FF);
+const _muted = Color(0xFFB9B8CC);
+const _native = MethodChannel('com.openinfra.boxBreathingApp/session');
+const _source = 'https://github.com/tmad4000/BoxBreathingApp';
 
 class BoxBreathingApp extends StatelessWidget {
-  const BoxBreathingApp({Key? key}) : super(key: key);
-
+  const BoxBreathingApp({super.key});
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context) => MaterialApp(
       title: 'Box Breathing',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
-        fontFamily: 'SF Pro Display',
+        brightness: Brightness.dark,
+        useMaterial3: true,
+        scaffoldBackgroundColor: _background,
+        colorScheme:
+            const ColorScheme.dark(primary: _accent, surface: _surface),
+        textTheme: const TextTheme(bodyMedium: TextStyle(height: 1.5)),
+        filledButtonTheme: FilledButtonThemeData(
+            style: FilledButton.styleFrom(
+                minimumSize: const Size(160, 52),
+                textStyle: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w600))),
+        textButtonTheme: TextButtonThemeData(
+            style: TextButton.styleFrom(minimumSize: const Size(48, 48))),
       ),
-      home: const BreathingScreen(),
-    );
-  }
+      home: const BreathingScreen());
 }
 
 class BreathingScreen extends StatefulWidget {
-  const BreathingScreen({Key? key}) : super(key: key);
-
+  const BreathingScreen({super.key});
   @override
   State<BreathingScreen> createState() => _BreathingScreenState();
 }
 
 class _BreathingScreenState extends State<BreathingScreen>
-    with TickerProviderStateMixin {
-  late AnimationController _animationController;
-  late AnimationController _pulseController;
-  late AnimationController _boxAnimationController;
-  late Animation<double> _scaleAnimation;
-  late Animation<double> _pulseAnimation;
-  late Animation<double> _glowAnimation;
-  late Animation<double> _boxProgressAnimation;
-  Timer? _timer;
-  
-  int _currentStep = 0;
-  int _countdown = 4;
-  bool _isRunning = false;
-  
-  final AudioController _audioController = AudioController();
-  bool _soundEnabled = true;
-  
-  final List<String> _instructions = [
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _phase;
+  int _step = 0, _rounds = 0, _target = 4;
+  bool _running = false,
+      _started = false,
+      _checkpoint = false,
+      _haptics = true,
+      _sound = true;
+  String _version = "1.0.0", _build = "3";
+  String? _audioError;
+  int _soundGeneration = 0;
+  static const _phases = ['Inhale', 'Hold', 'Exhale', 'Hold'];
+  static const _spoken = [
     'Inhale',
-    'Hold',
+    'Hold after inhaling',
     'Exhale',
-    'Hold',
-  ];
-  
-  final List<Color> _stepColors = [
-    const Color(0xFF4FC3F7), // Inhale - Light Blue
-    const Color(0xFF81C784), // Hold - Light Green
-    const Color(0xFFBA68C8), // Exhale - Light Purple
-    const Color(0xFFFFB74D), // Hold - Light Orange
+    'Hold after exhaling'
   ];
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    );
-    _pulseController = AnimationController(
-      duration: const Duration(milliseconds: 2500),
-      vsync: this,
-    )..repeat(reverse: true);
-    
-    _boxAnimationController = AnimationController(
-      duration: const Duration(seconds: 4),
-      vsync: this,
-    );
-    
-    _scaleAnimation = Tween<double>(
-      begin: 0.8,
-      end: 1.4,
-    ).animate(CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _pulseAnimation = Tween<double>(
-      begin: 0.98,
-      end: 1.02,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _glowAnimation = Tween<double>(
-      begin: 0.3,
-      end: 0.8,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
-    
-    _boxProgressAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _boxAnimationController,
-      curve: Curves.linear,
-    ));
-    
-    // Initialize audio controller
-    _audioController.initialize();
+    WidgetsBinding.instance.addObserver(this);
+    _loadPreferences();
+    _native.setMethodCallHandler((call) async {
+      if (call.method == "audioInterrupted") _pause();
+    });
+    _phase = AnimationController(
+        vsync: this,
+        duration: const Duration(seconds: 4),
+        animationBehavior: AnimationBehavior.preserve)
+      ..addStatusListener(_phaseStatus);
+  }
+
+  Future<void> _keepAwake(bool enabled) async {
+    try {
+      await _native.invokeMethod<void>('keepAwake', enabled);
+    } on MissingPluginException {
+      /* Non-iOS previews do not change idle policy. */
+    }
+  }
+
+  void _announce(String message) =>
+      SemanticsService.announce(message, TextDirection.ltr);
+  Future<void> _loadPreferences() async {
+    try {
+      final info = await _native.invokeMapMethod<String, dynamic>('info');
+      if (mounted && info != null) {
+        setState(() {
+          _sound = info['soundEnabled'] as bool? ?? true;
+          _haptics = info['hapticsEnabled'] as bool? ?? true;
+          _version = info['version'] as String? ?? _version;
+          _build = info['build'] as String? ?? _build;
+        });
+      }
+    } on MissingPluginException {/* Flutter previews use defaults. */}
+  }
+
+  Future<void> _playSound({bool test = false}) async {
+    if (!_sound && !test) return;
+    final generation = _soundGeneration;
+    try {
+      final bytes = await rootBundle.load('assets/audio/chime.wav');
+      if (!mounted || generation != _soundGeneration || (!_sound && !test)) {
+        return;
+      }
+      await _native.invokeMethod<void>('playSound',
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes));
+      if (mounted) setState(() => _audioError = null);
+    } on PlatformException {
+      if (mounted) {
+        setState(() => _audioError =
+            'Sound could not play. Check your output device and volume, then test again.');
+      }
+    } on MissingPluginException {
+      if (mounted) {
+        setState(
+            () => _audioError = 'Sound playback is available in the iOS app.');
+      }
+    }
+  }
+
+  Future<void> _stopSound() async {
+    _soundGeneration++;
+    try {
+      await _native.invokeMethod<void>('stopSound');
+    } on MissingPluginException {/* Preview. */}
+  }
+
+  void _cue() {
+    if (_haptics) unawaited(HapticFeedback.selectionClick());
+    unawaited(_playSound());
+  }
+
+  Future<void> _savePreferences() async {
+    try {
+      await _native.invokeMethod<void>('savePreferences',
+          {'soundEnabled': _sound, 'hapticsEnabled': _haptics});
+    } on MissingPluginException {/* Preview. */}
+  }
+
+  Future<void> _copyDiagnostics() async {
+    Map<String, dynamic>? info;
+    try {
+      info = await _native.invokeMapMethod<String, dynamic>('info');
+    } on MissingPluginException {/* Preview. */}
+    await Clipboard.setData(ClipboardData(
+        text: const JsonEncoder.withIndent('  ').convert({
+      'schemaVersion': 1,
+      'appVersion': _version,
+      'buildNumber': _build,
+      'state': _checkpoint
+          ? 'checkpoint'
+          : _running
+              ? 'running'
+              : _started
+                  ? 'paused'
+                  : 'ready',
+      'phase': _spoken[_step],
+      'completedRounds': _rounds,
+      'checkpointRounds': _target,
+      'phaseProgress': _phase.value,
+      'soundEnabled': _sound,
+      'hapticsEnabled': _haptics,
+      'audioError': _audioError,
+      'native': info,
+    })));
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('Diagnostics copied. No session history is recorded.')));
+    }
+  }
+
+  void _phaseStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || !_running) return;
+    final completedRound = _step == 3;
+    setState(() {
+      if (completedRound) _rounds++;
+      _step = (_step + 1) % 4;
+      if (_rounds == _target) {
+        _checkpoint = true;
+        _running = false;
+      }
+    });
+    _phase.reset();
+    if (_checkpoint) {
+      unawaited(_keepAwake(false));
+      _cue();
+      _announce(
+          'Checkpoint. $_rounds rounds complete. Breathe naturally. Continue for four more, or finish.');
+    } else {
+      _cue();
+      _announce('${_spoken[_step]}. Round ${_rounds + 1} of $_target.');
+      _phase.forward();
+    }
+  }
+
+  void _start() {
+    setState(() {
+      if (_checkpoint) {
+        _target += 4;
+        _checkpoint = false;
+      }
+      _running = true;
+      _started = true;
+    });
+    unawaited(_keepAwake(true));
+    _cue();
+    _announce('${_spoken[_step]}. Round ${_rounds + 1} of $_target.');
+    _phase.forward();
+  }
+
+  void _pause() {
+    if (!_running) return;
+    _phase.stop();
+    unawaited(_stopSound());
+    setState(() => _running = false);
+    unawaited(_keepAwake(false));
+    _announce('Paused. Breathe naturally.');
+  }
+
+  void _reset() {
+    _phase.stop();
+    unawaited(_stopSound());
+    setState(() {
+      _running = false;
+      _started = false;
+      _checkpoint = false;
+      _step = 0;
+      _rounds = 0;
+      _target = 4;
+    });
+    _phase.reset();
+    unawaited(_keepAwake(false));
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _pause();
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
-    _pulseController.dispose();
-    _boxAnimationController.dispose();
-    _audioController.dispose();
-    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _native.setMethodCallHandler(null);
+    _phase.dispose();
+    unawaited(_stopSound());
+    unawaited(_keepAwake(false));
     super.dispose();
   }
 
-  void _startBreathing() {
-    setState(() {
-      _isRunning = true;
-      _currentStep = 0;
-      _countdown = 4;
-    });
-    _animationController.reset();
-    _audioController.playStartSound();
-    _audioController.startAmbient();
-    _runCycle();
-  }
-
-  void _pauseBreathing() {
-    setState(() {
-      _isRunning = false;
-    });
-    _timer?.cancel();
-    _animationController.stop();
-    _boxAnimationController.stop();
-    _audioController.playPauseSound();
-  }
-
-  void _resetBreathing() {
-    setState(() {
-      _isRunning = false;
-      _currentStep = 0;
-      _countdown = 4;
-    });
-    _timer?.cancel();
-    _animationController.reset();
-    _boxAnimationController.reset();
-    _audioController.playResetSound();
-  }
-
-  void _runCycle() {
-    if (!_isRunning) return;
-
-    // Start animation for inhale and exhale
-    if (_currentStep == 0) {
-      _animationController.forward();
-    } else if (_currentStep == 2) {
-      _animationController.reverse();
+  Future<void> _open(String url) async {
+    try {
+      await _native.invokeMethod<void>('openURL', url);
+    } on PlatformException {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Could not open the link. Please try again.')));
+      }
+    } on MissingPluginException {
+      await Clipboard.setData(ClipboardData(text: url));
     }
-    
-    // Start box animation for current step
-    _boxAnimationController.reset();
-    _boxAnimationController.forward();
-    
-    // Play sound for current breathing step
-    _audioController.playBreathingSound(_currentStep);
+  }
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isRunning) {
-        timer.cancel();
-        return;
-      }
-
-      setState(() {
-        _countdown--;
-      });
-
-      if (_countdown == 0) {
-        timer.cancel();
-        // Play transition sound
-        _audioController.playTransitionSound();
-        setState(() {
-          _currentStep = (_currentStep + 1) % 4;
-          _countdown = 4;
-        });
-        _runCycle();
-      }
-    });
+  void _settings() {
+    _pause();
+    Navigator.of(context).push<void>(MaterialPageRoute(
+        builder: (context) => StatefulBuilder(
+            builder: (context, update) => Scaffold(
+                  appBar: AppBar(title: const Text('Settings')),
+                  body: SafeArea(
+                      child: ListView(
+                          padding: const EdgeInsets.all(24),
+                          children: [
+                        const Text('Your practice',
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 12),
+                        SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Sound'),
+                            subtitle: const Text(
+                                'A soft chime at each phase and checkpoint'),
+                            value: _sound,
+                            onChanged: (value) {
+                              setState(() => _sound = value);
+                              update(() {});
+                              _savePreferences();
+                              if (!value) _stopSound();
+                            }),
+                        SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Haptics'),
+                            subtitle:
+                                const Text('Gentle taps, independent of sound'),
+                            value: _haptics,
+                            onChanged: (value) {
+                              setState(() => _haptics = value);
+                              update(() {});
+                              _savePreferences();
+                            }),
+                        Align(
+                            alignment: Alignment.centerLeft,
+                            child: TextButton.icon(
+                                icon: const Icon(Icons.volume_up_outlined),
+                                label: const Text('Test sound'),
+                                onPressed: () async {
+                                  await _playSound(test: true);
+                                  if (context.mounted) update(() {});
+                                })),
+                        const Text(
+                            'Uses media volume, including in Silent Mode. Sound plays through your current speaker or headphones.',
+                            style: TextStyle(color: _muted)),
+                        if (_audioError != null)
+                          Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(_audioError!)),
+                        const SizedBox(height: 28),
+                        const Text('Free & open source',
+                            style: TextStyle(
+                                fontSize: 20, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 8),
+                        const Text(
+                            'A small breathing tool you can inspect, improve and share. No account, ads or subscriptions.'),
+                        const SizedBox(height: 12),
+                        const Text(
+                            'No session history, analytics or microphone access. Only your sound and haptics preferences are saved on this device.'),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                            onPressed: () => _open(_source),
+                            icon: const Icon(Icons.code),
+                            label: const Text('View source on GitHub')),
+                        TextButton(
+                            onPressed: () =>
+                                _open('$_source/blob/main/PRIVACY.md'),
+                            child: const Text('Privacy policy')),
+                        TextButton(
+                            onPressed: () => _open('$_source/issues'),
+                            child: const Text('Support & feedback')),
+                        TextButton(
+                            onPressed: () => showLicensePage(
+                                context: context,
+                                applicationName: 'Box Breathing',
+                                applicationVersion: '$_version ($_build)'),
+                            child: const Text('Open-source licenses')),
+                        const SizedBox(height: 20),
+                        Center(
+                            child: Text('Version $_version · Build $_build',
+                                style: const TextStyle(color: _muted))),
+                        TextButton(
+                            onPressed: _copyDiagnostics,
+                            child: const Text('Copy diagnostics')),
+                      ])),
+                ))));
   }
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final groupDone = _checkpoint ? 4 : _rounds % 4;
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        title: const Text(
-          'Box Breathing',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w300,
-            fontSize: 18,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        systemOverlayStyle: SystemUiOverlayStyle.light,
-        actions: [
-          IconButton(
-            onPressed: () {
-              setState(() {
-                _soundEnabled = !_soundEnabled;
-                _audioController.setSoundEnabled(_soundEnabled);
-              });
-            },
-            icon: Icon(
-              _soundEnabled ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-              color: Colors.white.withOpacity(0.8),
-            ),
-          ),
-        ],
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF0F0C29),
-              Color(0xFF24243e),
-              Color(0xFF302b63),
-              Color(0xFF24243e),
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
-                  
-                  // Title
-                  const Text(
-                    'Find Your Breath',
-                    style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w200,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 8),
-                  
-                  Text(
-                    'Breathe • Hold • Release • Rest',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w300,
-                      color: Colors.white.withOpacity(0.7),
-                      letterSpacing: 0.8,
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 60),
-                  
-                  // Box Breathing visualization
-                  AnimatedBuilder(
-                    animation: Listenable.merge([_scaleAnimation, _pulseAnimation, _glowAnimation, _boxProgressAnimation]),
-                    builder: (context, child) {
-                      return Transform.scale(
-                        scale: _pulseAnimation.value,
-                        child: Container(
-                          width: 320,
-                          height: 320,
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              // Background glow
-                              Container(
-                                width: 320,
-                                height: 320,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.rectangle,
-                                  borderRadius: BorderRadius.circular(20),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _stepColors[_currentStep].withOpacity(_glowAnimation.value * 0.5),
-                                      blurRadius: 60,
-                                      spreadRadius: 15,
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              
-                              // Animated Box
-                              CustomPaint(
-                                size: const Size(280, 280),
-                                painter: BoxBreathingPainter(
-                                  progress: _boxProgressAnimation.value,
-                                  currentStep: _currentStep,
-                                  stepColor: _stepColors[_currentStep],
-                                  glowIntensity: _glowAnimation.value,
-                                ),
-                              ),
-                              
-                              // Center content
-                              Container(
-                                width: 180,
-                                height: 180,
-                                decoration: BoxDecoration(
-                                  color: Colors.black.withOpacity(0.3),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: Colors.white.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
+        appBar: AppBar(
+            title: const Text('Box Breathing',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500)),
+            backgroundColor: _background,
+            actions: [
+              IconButton(
+                  tooltip: 'Settings',
+                  onPressed: _settings,
+                  icon: const Icon(Icons.settings_outlined)),
+            ]),
+        body: SafeArea(
+            child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                    child: Center(
+                        child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 480),
+                            child: Column(children: [
+                              Text(
+                                  _checkpoint
+                                      ? 'A moment to check in'
+                                      : 'A little space to breathe',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      fontSize: 26,
+                                      fontWeight: FontWeight.w600,
+                                      letterSpacing: -0.5)),
+                              const SizedBox(height: 8),
+                              Text(
+                                  _checkpoint
+                                      ? 'Breathe naturally. Notice how you feel.'
+                                      : 'Inhale · Hold · Exhale · Hold\n4 seconds each · 4 rounds · about 1 minute',
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                      color: _muted,
+                                      fontSize: 15,
+                                      height: 1.6)),
+                              const SizedBox(height: 24),
+                              AnimatedBuilder(
+                                  animation: _phase,
+                                  builder: (context, child) {
+                                    final seconds = math.max(
+                                        1, (4 * (1 - _phase.value)).ceil());
+                                    final label = _checkpoint
+                                        ? 'Complete'
+                                        : !_started
+                                            ? 'Ready'
+                                            : !_running
+                                                ? 'Paused'
+                                                : _phases[_step];
+                                    return Semantics(
+                                        label: _checkpoint
+                                            ? '$_rounds rounds complete'
+                                            : !_started
+                                                ? 'Ready to begin four rounds'
+                                                : '${_running ? _spoken[_step] : "Paused"}. $seconds seconds. $_rounds completed rounds.',
+                                        child: ExcludeSemantics(
+                                            child: SizedBox(
+                                                width: math.min(
+                                                    constraints.maxWidth - 48,
+                                                    320),
+                                                height: math.min(
+                                                    constraints.maxWidth - 48,
+                                                    320),
+                                                child: Stack(
+                                                    alignment: Alignment.center,
+                                                    children: [
+                                                      Positioned.fill(
+                                                          child: CustomPaint(
+                                                              painter: BoxBreathingPainter(
+                                                                  progress: reduceMotion
+                                                                      ? 0
+                                                                      : _phase
+                                                                          .value,
+                                                                  currentStep:
+                                                                      _step,
+                                                                  stepColor:
+                                                                      _accent,
+                                                                  glowIntensity:
+                                                                      reduceMotion
+                                                                          ? 0
+                                                                          : 0.2))),
+                                                      Padding(
+                                                          padding:
+                                                              const EdgeInsets
+                                                                  .all(52),
+                                                          child: FittedBox(
+                                                              fit: BoxFit
+                                                                  .scaleDown,
+                                                              child: Column(
+                                                                  mainAxisSize:
+                                                                      MainAxisSize
+                                                                          .min,
+                                                                  children: [
+                                                                    Text(label,
+                                                                        style: const TextStyle(
+                                                                            color:
+                                                                                _muted,
+                                                                            fontSize:
+                                                                                20)),
+                                                                    const SizedBox(
+                                                                        height:
+                                                                            8),
+                                                                    Text(
+                                                                        _checkpoint
+                                                                            ? '$_rounds'
+                                                                            : !_started
+                                                                                ? '4'
+                                                                                : '$seconds',
+                                                                        style: const TextStyle(
+                                                                            fontSize:
+                                                                                68,
+                                                                            height: 1.1,
+                                                                            fontWeight: FontWeight.w300,
+                                                                            fontFeatures: [
+                                                                              FontFeature.tabularFigures()
+                                                                            ])),
+                                                                    if (_checkpoint ||
+                                                                        !_started)
+                                                                      Text(
+                                                                          _checkpoint
+                                                                              ? 'rounds complete'
+                                                                              : 'rounds to unwind',
+                                                                          style: const TextStyle(
+                                                                              color: _muted,
+                                                                              fontSize: 14)),
+                                                                  ]))),
+                                                    ]))));
+                                  }),
+                              const SizedBox(height: 20),
+                              Semantics(
+                                  label: '$_rounds of $_target rounds complete',
+                                  child: ExcludeSemantics(
+                                      child: Column(children: [
                                     Text(
-                                      _instructions[_currentStep],
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w300,
-                                        color: Colors.white,
-                                        letterSpacing: 1.0,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _countdown.toString(),
-                                      style: const TextStyle(
-                                        fontSize: 64,
-                                        fontWeight: FontWeight.w100,
-                                        color: Colors.white,
-                                        letterSpacing: 2.0,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  
-                  const SizedBox(height: 80),
-                  
-                  // Control buttons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildModernButton(
-                        onPressed: _isRunning ? null : _startBreathing,
-                        icon: Icons.play_arrow_rounded,
-                        label: 'Start',
-                        color: const Color(0xFF4FC3F7),
-                        isEnabled: !_isRunning,
-                      ),
-                      _buildModernButton(
-                        onPressed: _isRunning ? _pauseBreathing : null,
-                        icon: Icons.pause_rounded,
-                        label: 'Pause',
-                        color: const Color(0xFFFFB74D),
-                        isEnabled: _isRunning,
-                      ),
-                      _buildModernButton(
-                        onPressed: _resetBreathing,
-                        icon: Icons.refresh_rounded,
-                        label: 'Reset',
-                        color: const Color(0xFFBA68C8),
-                        isEnabled: true,
-                      ),
-                    ],
-                  ),
-                  
-                  const SizedBox(height: 60),
-                  
-                  // Instructions
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.1),
-                        width: 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Text(
-                          'The Art of Mindful Breathing',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w300,
-                            color: Colors.white.withOpacity(0.9),
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Box breathing is a powerful technique used by Navy SEALs and meditation practitioners to reduce stress and enhance focus. Follow the animated box as it traces the four sides of breathing.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w300,
-                            color: Colors.white.withOpacity(0.7),
-                            height: 1.6,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-  
-  Widget _buildModernButton({
-    required VoidCallback? onPressed,
-    required IconData icon,
-    required String label,
-    required Color color,
-    required bool isEnabled,
-  }) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 80,
-        height: 80,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          gradient: isEnabled
-              ? RadialGradient(
-                  colors: [
-                    color.withOpacity(0.8),
-                    color.withOpacity(0.3),
-                  ],
-                )
-              : RadialGradient(
-                  colors: [
-                    Colors.grey.withOpacity(0.3),
-                    Colors.grey.withOpacity(0.1),
-                  ],
-                ),
-          boxShadow: isEnabled
-              ? [
-                  BoxShadow(
-                    color: color.withOpacity(0.4),
-                    blurRadius: 15,
-                    spreadRadius: 2,
-                  ),
-                ]
-              : [],
-          border: Border.all(
-            color: isEnabled ? color.withOpacity(0.5) : Colors.grey.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: isEnabled ? Colors.white : Colors.grey.withOpacity(0.5),
-              size: 24,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w300,
-                color: isEnabled ? Colors.white : Colors.grey.withOpacity(0.5),
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+                                        _checkpoint
+                                            ? 'Checkpoint reached'
+                                            : '$_rounds of $_target rounds complete',
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                            fontFeatures: [
+                                              FontFeature.tabularFigures()
+                                            ])),
+                                    const SizedBox(height: 12),
+                                    Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: List.generate(
+                                            4,
+                                            (i) => Container(
+                                                margin:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 4),
+                                                width: 36,
+                                                height: 5,
+                                                decoration: BoxDecoration(
+                                                    color: i < groupDone
+                                                        ? _accent
+                                                        : const Color(
+                                                            0xFF3B3B53),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            3))))),
+                                  ]))),
+                              const SizedBox(height: 28),
+                              SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.icon(
+                                      onPressed: _running ? _pause : _start,
+                                      icon: Icon(_running
+                                          ? Icons.pause_rounded
+                                          : Icons.play_arrow_rounded),
+                                      label: Text(_checkpoint
+                                          ? 'Continue for 4 more'
+                                          : _running
+                                              ? 'Pause'
+                                              : _started
+                                                  ? 'Resume'
+                                                  : 'Begin 4 rounds'))),
+                              const SizedBox(height: 8),
+                              TextButton(
+                                  onPressed: _started ? _reset : null,
+                                  child: Text(_checkpoint
+                                      ? 'Finish'
+                                      : 'Reset session')),
+                              const SizedBox(height: 16),
+                              const Text(
+                                  'Keep your breath gentle. If you feel uncomfortable or dizzy, stop and breathe normally.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: _muted,
+                                      fontSize: 13,
+                                      height: 1.5)),
+                              const SizedBox(height: 16),
+                              TextButton.icon(
+                                  onPressed: _settings,
+                                  icon: const Icon(Icons.code, size: 18),
+                                  label: const Text('Free & open source')),
+                            ])))))));
   }
 }
