@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,13 +7,27 @@ import 'package:box_breathing_app/box_painter.dart';
 
 void main() {
   late List<MethodCall> calls;
+  String? copiedDiagnostics;
+  bool audioFails = false;
   setUp(() {
     calls = [];
+    copiedDiagnostics = null;
+    audioFails = false;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedDiagnostics = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
             const MethodChannel('com.openinfra.boxBreathingApp/session'),
             (call) async {
       calls.add(call);
+      if (call.method == 'playSound' && audioFails) {
+        throw PlatformException(code: 'audioUnavailable');
+      }
       if (call.method == 'info') return {'version': '1.0.0', 'build': '3'};
       return null;
     });
@@ -147,6 +162,16 @@ void main() {
         calls.where((call) => call.method == 'playSound').length, before + 1);
     await tester.ensureVisible(find.text('Version 1.0.0 · Build 3'));
     expect(find.text('Version 1.0.0 · Build 3'), findsOneWidget);
+    await tap(tester, 'Copy diagnostics');
+    await tester.pumpAndSettle();
+    final snapshot = jsonDecode(copiedDiagnostics!) as Map<String, dynamic>;
+    expect(snapshot['schemaVersion'], 1);
+    expect(snapshot['appVersion'], '1.0.0');
+    expect(snapshot['buildNumber'], '3');
+    expect(snapshot['state'], 'paused');
+    expect(snapshot['soundEnabled'], false);
+    expect(snapshot['completedRounds'], 0);
+    expect(snapshot.containsKey('history'), false);
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Resume'), findsOneWidget);
@@ -169,6 +194,20 @@ void main() {
     await tester.pump(const Duration(milliseconds: 3001));
     await tester.pump();
     expect(painter(tester).currentStep, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('unavailable sound has an honest visible error', (tester) async {
+    await launch(tester);
+    audioFails = true;
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tap(tester, 'Test sound');
+    await tester.pumpAndSettle();
+    expect(
+        find.text(
+            'Sound could not play. Check your output device and volume, then test again.'),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
 }
