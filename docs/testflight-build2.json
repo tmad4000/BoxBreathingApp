@@ -1,0 +1,27 @@
+{
+  "appId": "6748843949",
+  "build": "2",
+  "buildId": "9002e71a-0f88-40de-99fe-e17ecc398f17",
+  "processingState": "VALID",
+  "uploadedDate": "2026-10-27T01:52:41-07:00",
+  "expirationDate": "2027-01-25T00:52:41-08:00",
+  "internalGroups": [
+    {
+      "id": "30d77304-9bb7-4699-ac8a-dac60b32dc1d",
+      "name": "Test",
+      "hasAccessToAllBuilds": true,
+      "jacob": [
+        {
+          "id": "d20eb1ca-5997-4ab3-abc9-9adcc9414f74",
+          "state": "INVITED"
+        }
+      ]
+    }
+  ],
+  "betaDetail": {
+    "autoNotifyEnabled": true,
+    "internalBuildState": "IN_BETA_TESTING",
+    "externalBuildState": "READY_FOR_BETA_SUBMISSION"
+  },
+  "verifiedAt": "2026-10-27T08:55:01Z"
+}

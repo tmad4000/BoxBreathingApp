@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local signing and verification artifacts
+ExportOptions.plist
+*.mobileprovision
+release/screenshots/
+test-results.jsonl

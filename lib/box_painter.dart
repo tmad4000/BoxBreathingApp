@@ -18,44 +18,44 @@ class BoxBreathingPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final boxSize = size.width * 0.8;
     final halfBox = boxSize / 2;
-    
+
     // Box corners
     final topLeft = Offset(center.dx - halfBox, center.dy - halfBox);
     final topRight = Offset(center.dx + halfBox, center.dy - halfBox);
     final bottomRight = Offset(center.dx + halfBox, center.dy + halfBox);
     final bottomLeft = Offset(center.dx - halfBox, center.dy + halfBox);
-    
+
     // Paint for box outline
     final boxPaint = Paint()
-      ..color = Colors.white.withOpacity(0.3)
+      ..color = Colors.white.withValues(alpha: 0.3)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
-    
+
     // Paint for active edge
     final activePaint = Paint()
       ..color = stepColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.0
       ..strokeCap = StrokeCap.round;
-    
+
     // Paint for glow effect
     final glowPaint = Paint()
-      ..color = stepColor.withOpacity(glowIntensity * 0.6)
+      ..color = stepColor.withValues(alpha: glowIntensity * 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 8.0
       ..strokeCap = StrokeCap.round
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0);
-    
+
     // Paint for indicator dot
     final dotPaint = Paint()
       ..color = stepColor
       ..style = PaintingStyle.fill;
-    
+
     final dotGlowPaint = Paint()
-      ..color = stepColor.withOpacity(glowIntensity)
+      ..color = stepColor.withValues(alpha: glowIntensity)
       ..style = PaintingStyle.fill
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8.0);
-    
+
     // Draw box outline
     final boxPath = Path()
       ..moveTo(topLeft.dx, topLeft.dy)
@@ -63,13 +63,13 @@ class BoxBreathingPainter extends CustomPainter {
       ..lineTo(bottomRight.dx, bottomRight.dy)
       ..lineTo(bottomLeft.dx, bottomLeft.dy)
       ..lineTo(topLeft.dx, topLeft.dy);
-    
+
     canvas.drawPath(boxPath, boxPaint);
-    
+
     // Calculate current position based on step and progress
     Offset currentPosition;
     Path currentPath;
-    
+
     switch (currentStep) {
       case 0: // Inhale - Left edge (bottom to top)
         currentPosition = Offset(
@@ -111,22 +111,22 @@ class BoxBreathingPainter extends CustomPainter {
         currentPosition = bottomLeft;
         currentPath = Path();
     }
-    
+
     // Draw glow effect for active edge
     canvas.drawPath(currentPath, glowPaint);
-    
+
     // Draw active edge
     canvas.drawPath(currentPath, activePaint);
-    
+
     // Draw indicator dot with glow
     canvas.drawCircle(currentPosition, 12.0, dotGlowPaint);
     canvas.drawCircle(currentPosition, 6.0, dotPaint);
-    
+
     // Draw corner dots
     final cornerPaint = Paint()
-      ..color = Colors.white.withOpacity(0.4)
+      ..color = Colors.white.withValues(alpha: 0.4)
       ..style = PaintingStyle.fill;
-    
+
     canvas.drawCircle(topLeft, 3.0, cornerPaint);
     canvas.drawCircle(topRight, 3.0, cornerPaint);
     canvas.drawCircle(bottomRight, 3.0, cornerPaint);
