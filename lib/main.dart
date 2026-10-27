@@ -278,88 +278,104 @@ class _BreathingScreenState extends State<BreathingScreen>
             builder: (context, update) => Scaffold(
                   appBar: AppBar(title: const Text('Settings')),
                   body: SafeArea(
-                      child: ListView(
-                          padding: const EdgeInsets.all(24),
-                          children: [
-                        const Text('Your practice',
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 12),
-                        SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Sound'),
-                            subtitle: const Text(
-                                'A soft chime at each phase and checkpoint'),
-                            value: _sound,
-                            onChanged: (value) {
-                              setState(() => _sound = value);
-                              update(() {});
-                              _savePreferences();
-                              if (!value) _stopSound();
-                            }),
-                        SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('Haptics'),
-                            subtitle:
-                                const Text('Gentle taps, independent of sound'),
-                            value: _haptics,
-                            onChanged: (value) {
-                              setState(() => _haptics = value);
-                              update(() {});
-                              _savePreferences();
-                            }),
-                        Align(
-                            alignment: Alignment.centerLeft,
-                            child: TextButton.icon(
-                                icon: const Icon(Icons.volume_up_outlined),
-                                label: const Text('Test sound'),
-                                onPressed: () async {
-                                  await _playSound(test: true);
-                                  if (context.mounted) update(() {});
-                                })),
-                        const Text(
-                            'Uses media volume, including in Silent Mode. Sound plays through your current speaker or headphones.',
-                            style: TextStyle(color: _muted)),
-                        if (_audioError != null)
-                          Padding(
-                              padding: const EdgeInsets.only(top: 12),
-                              child: Text(_audioError!)),
-                        const SizedBox(height: 28),
-                        const Text('Free & open source',
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 8),
-                        const Text(
-                            'A small breathing tool you can inspect, improve and share. No account, ads or subscriptions.'),
-                        const SizedBox(height: 12),
-                        const Text(
-                            'No session history, analytics or microphone access. Only your sound and haptics preferences are saved on this device.'),
-                        const SizedBox(height: 12),
-                        TextButton.icon(
-                            onPressed: () => _open(_source),
-                            icon: const Icon(Icons.code),
-                            label: const Text('View source on GitHub')),
-                        TextButton(
-                            onPressed: () =>
-                                _open('$_source/blob/main/PRIVACY.md'),
-                            child: const Text('Privacy policy')),
-                        TextButton(
-                            onPressed: () => _open('$_source/issues'),
-                            child: const Text('Support & feedback')),
-                        TextButton(
-                            onPressed: () => showLicensePage(
-                                context: context,
-                                applicationName: 'Box Breathing',
-                                applicationVersion: '$_version ($_build)'),
-                            child: const Text('Open-source licenses')),
-                        const SizedBox(height: 20),
-                        Center(
-                            child: Text('Version $_version · Build $_build',
-                                style: const TextStyle(color: _muted))),
-                        TextButton(
-                            onPressed: _copyDiagnostics,
-                            child: const Text('Copy diagnostics')),
-                      ])))),
+                      child: Center(
+                          child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 560),
+                              child: ListView(
+                                  padding: const EdgeInsets.all(24),
+                                  children: [
+                                    const Text('Your practice',
+                                        style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 12),
+                                    SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Sound'),
+                                        subtitle: const Text(
+                                            'A soft chime at each phase and checkpoint'),
+                                        value: _sound,
+                                        onChanged: (value) {
+                                          setState(() => _sound = value);
+                                          update(() {});
+                                          _savePreferences();
+                                          if (!value) _stopSound();
+                                        }),
+                                    SwitchListTile(
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Haptics'),
+                                        subtitle: const Text(
+                                            'Gentle taps, independent of sound'),
+                                        value: _haptics,
+                                        onChanged: (value) {
+                                          setState(() => _haptics = value);
+                                          update(() {});
+                                          _savePreferences();
+                                        }),
+                                    Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton.icon(
+                                            icon: const Icon(
+                                                Icons.volume_up_outlined),
+                                            label: const Text('Test sound'),
+                                            onPressed: () async {
+                                              await _playSound(test: true);
+                                              if (context.mounted) {
+                                                update(() {});
+                                              }
+                                            })),
+                                    const Text(
+                                        'Uses media volume, including in Silent Mode. Sound plays through your current speaker or headphones.',
+                                        style: TextStyle(color: _muted)),
+                                    if (_audioError != null)
+                                      Padding(
+                                          padding:
+                                              const EdgeInsets.only(top: 12),
+                                          child: Text(_audioError!)),
+                                    const SizedBox(height: 28),
+                                    const Text('Free & open source',
+                                        style: TextStyle(
+                                            fontSize: 20,
+                                            fontWeight: FontWeight.w600)),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                        'A small breathing tool you can inspect, improve and share. No account, ads or subscriptions.'),
+                                    const SizedBox(height: 12),
+                                    const Text(
+                                        'No session history, analytics or microphone access. Only your sound and haptics preferences are saved on this device.'),
+                                    const SizedBox(height: 12),
+                                    TextButton.icon(
+                                        onPressed: () => _open(_source),
+                                        icon: const Icon(Icons.code),
+                                        label: const Text(
+                                            'View source on GitHub')),
+                                    TextButton(
+                                        onPressed: () => _open(
+                                            '$_source/blob/main/PRIVACY.md'),
+                                        child: const Text('Privacy policy')),
+                                    TextButton(
+                                        onPressed: () =>
+                                            _open('$_source/issues'),
+                                        child:
+                                            const Text('Support & feedback')),
+                                    TextButton(
+                                        onPressed: () => showLicensePage(
+                                            context: context,
+                                            applicationName: 'Box Breathing',
+                                            applicationVersion:
+                                                '$_version ($_build)'),
+                                        child:
+                                            const Text('Open-source licenses')),
+                                    const SizedBox(height: 20),
+                                    Center(
+                                        child: Text(
+                                            'Version $_version · Build $_build',
+                                            style: const TextStyle(
+                                                color: _muted))),
+                                    TextButton(
+                                        onPressed: _copyDiagnostics,
+                                        child: const Text('Copy diagnostics')),
+                                  ])))),
                 ))));
   }
 
