@@ -1,6 +1,6 @@
 name: box_breathing_app
 description: A beautiful guided box breathing app for stress relief and mindfulness
-version: 1.0.0+3
+version: 1.0.0+4
 
 environment:
   sdk: '>=2.18.0 <4.0.0'

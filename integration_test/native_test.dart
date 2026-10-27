@@ -65,5 +65,19 @@ void main() {
         EnginePhase.sendSemanticsUpdate, const Duration(seconds: 90));
     expect(find.text('Checkpoint reached'), findsOneWidget);
     await screenshot('box-checkpoint');
+    await tester.tap(find.text('Finish'));
+    await tester.pumpAndSettle();
+    for (final event in ['routeLoss', 'interruption']) {
+      await tester
+          .tap(find.text(event == 'routeLoss' ? 'Begin 4 rounds' : 'Resume'));
+      await tester.pump();
+      await channel.invokeMethod<void>('debugAudioEvent', event);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(find.text('Resume'), findsOneWidget);
+      final paused = await channel.invokeMapMethod<String, dynamic>('info');
+      expect(paused!['idleTimerDisabled'], false);
+      expect(paused['soundPlaying'], false);
+    }
   });
 }

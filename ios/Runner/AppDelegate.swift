@@ -42,6 +42,20 @@ import UIKit
         } catch {
           result(FlutterError(code: "audioUnavailable", message: "Audio playback is unavailable", details: nil))
         }
+      #if DEBUG
+      case "debugAudioEvent":
+        let routeLoss = call.arguments as? String == "routeLoss"
+        DispatchQueue.global(qos: .userInitiated).async {
+          if routeLoss {
+            NotificationCenter.default.post(name: AVAudioSession.routeChangeNotification, object: nil,
+              userInfo: [AVAudioSessionRouteChangeReasonKey: AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue])
+          } else {
+            NotificationCenter.default.post(name: AVAudioSession.interruptionNotification, object: nil,
+              userInfo: [AVAudioSessionInterruptionTypeKey: AVAudioSession.InterruptionType.began.rawValue])
+          }
+        }
+        result(nil)
+      #endif
       case "stopSound":
         self.stopSound()
         result(nil)
@@ -89,15 +103,19 @@ import UIKit
   @objc private func audioInterrupted(_ notification: Notification) {
     guard let type = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
           type == AVAudioSession.InterruptionType.began.rawValue else { return }
-    stopSound()
-    sessionChannel?.invokeMethod("audioInterrupted", arguments: nil)
+    DispatchQueue.main.async { [weak self] in
+      self?.stopSound()
+      self?.sessionChannel?.invokeMethod("audioInterrupted", arguments: nil)
+    }
   }
 
   @objc private func routeChanged(_ notification: Notification) {
     guard let reason = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
           reason == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
-    stopSound()
-    sessionChannel?.invokeMethod("audioInterrupted", arguments: nil)
+    DispatchQueue.main.async { [weak self] in
+      self?.stopSound()
+      self?.sessionChannel?.invokeMethod("audioInterrupted", arguments: nil)
+    }
   }
 
   override func applicationDidEnterBackground(_ application: UIApplication) {
