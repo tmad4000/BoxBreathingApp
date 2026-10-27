@@ -6,6 +6,8 @@ import 'package:box_breathing_app/main.dart' as app;
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   Future<void> screenshot(String name) async {
+    // Native screenshots must wait for the compositor, beyond widget settling.
+    await Future<void>.delayed(const Duration(milliseconds: 700));
     await binding.takeScreenshot(name);
   }
 
