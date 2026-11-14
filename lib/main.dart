@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'box_painter.dart';
+import 'path_painter.dart';
 
 void main() => runApp(const BoxBreathingApp());
 
@@ -53,7 +54,8 @@ class _BreathingScreenState extends State<BreathingScreen>
       _started = false,
       _checkpoint = false,
       _haptics = true,
-      _sound = true;
+      _sound = true,
+      _pathGuide = false;
   String _version = "1.0.0", _build = "4";
   String? _audioError;
   int _soundGeneration = 0;
@@ -97,6 +99,7 @@ class _BreathingScreenState extends State<BreathingScreen>
         setState(() {
           _sound = info['soundEnabled'] as bool? ?? true;
           _haptics = info['hapticsEnabled'] as bool? ?? true;
+          _pathGuide = info['pathGuide'] as bool? ?? false;
           _version = info['version'] as String? ?? _version;
           _build = info['build'] as String? ?? _build;
         });
@@ -142,8 +145,11 @@ class _BreathingScreenState extends State<BreathingScreen>
 
   Future<void> _savePreferences() async {
     try {
-      await _native.invokeMethod<void>('savePreferences',
-          {'soundEnabled': _sound, 'hapticsEnabled': _haptics});
+      await _native.invokeMethod<void>('savePreferences', {
+        'soundEnabled': _sound,
+        'hapticsEnabled': _haptics,
+        'pathGuide': _pathGuide,
+      });
     } on MissingPluginException {/* Preview. */}
   }
 
@@ -170,6 +176,7 @@ class _BreathingScreenState extends State<BreathingScreen>
       'phaseProgress': _phase.value,
       'soundEnabled': _sound,
       'hapticsEnabled': _haptics,
+      'guideStyle': _pathGuide ? 'path' : 'box',
       'audioError': _audioError,
       'native': info,
     })));
@@ -332,6 +339,42 @@ class _BreathingScreenState extends State<BreathingScreen>
                                           padding:
                                               const EdgeInsets.only(top: 12),
                                           child: Text(_audioError!)),
+                                    const SizedBox(height: 20),
+                                    const Text(
+                                      'Guide style',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'How the breath is drawn as you practice',
+                                      style: TextStyle(color: _muted),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    SegmentedButton<bool>(
+                                      segments: const [
+                                        ButtonSegment(
+                                          value: false,
+                                          label: Text('Box'),
+                                          icon: Icon(Icons.crop_square),
+                                        ),
+                                        ButtonSegment(
+                                          value: true,
+                                          label: Text('Path'),
+                                          icon: Icon(Icons.show_chart),
+                                        ),
+                                      ],
+                                      selected: {_pathGuide},
+                                      showSelectedIcon: false,
+                                      onSelected: (choice) {
+                                        final path = choice.first;
+                                        setState(() => _pathGuide = path);
+                                        update(() {});
+                                        _savePreferences();
+                                      },
+                                    ),
                                     const SizedBox(height: 28),
                                     const Text('Free & open source',
                                         style: TextStyle(
@@ -342,7 +385,7 @@ class _BreathingScreenState extends State<BreathingScreen>
                                         'A small breathing tool you can inspect, improve and share. No account, ads or subscriptions.'),
                                     const SizedBox(height: 12),
                                     const Text(
-                                        'No session history, analytics or microphone access. Only your sound and haptics preferences are saved on this device.'),
+                                        'No session history, analytics or microphone access. Only your sound, haptics and guide style preferences are saved on this device.'),
                                     const SizedBox(height: 12),
                                     TextButton.icon(
                                         onPressed: () => _open(_source),
@@ -377,6 +420,43 @@ class _BreathingScreenState extends State<BreathingScreen>
                                         child: const Text('Copy diagnostics')),
                                   ])))),
                 ))));
+  }
+
+  String _guideLabel(int seconds) {
+    if (_checkpoint) return '$_rounds rounds complete';
+    if (!_started) return 'Ready to begin four rounds';
+    final phase = _running ? _spoken[_step] : 'Paused';
+    return '$phase. $seconds seconds. $_rounds completed rounds.';
+  }
+
+  Widget _pathView(String label, int seconds) {
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    final perPhase = _phase.duration!.inMilliseconds / 1000;
+    final durations = List<double>.filled(4, perPhase);
+    final progress = reduceMotion ? 0.0 : _phase.value;
+    var detail = _started ? '$seconds' : '';
+    if (_checkpoint) detail = '$_rounds rounds';
+    return Semantics(
+      label: _guideLabel(seconds),
+      child: ExcludeSemantics(
+        child: SizedBox(
+          width: double.infinity,
+          height: 240,
+          child: CustomPaint(
+            painter: BreathPathPainter(
+              elapsed: breathElapsed(_step, progress, durations),
+              durations: durations,
+              lineColor: _accent,
+              ballColor: Colors.white,
+              label: label,
+              detail: detail,
+              detailColor: _muted,
+              textScaler: MediaQuery.textScalerOf(context),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -434,12 +514,11 @@ class _BreathingScreenState extends State<BreathingScreen>
                                             : !_running
                                                 ? 'Paused'
                                                 : _phases[_step];
+                                    if (_pathGuide) {
+                                      return _pathView(label, seconds);
+                                    }
                                     return Semantics(
-                                        label: _checkpoint
-                                            ? '$_rounds rounds complete'
-                                            : !_started
-                                                ? 'Ready to begin four rounds'
-                                                : '${_running ? _spoken[_step] : "Paused"}. $seconds seconds. $_rounds completed rounds.',
+                                        label: _guideLabel(seconds),
                                         child: ExcludeSemantics(
                                             child: SizedBox(
                                                 width: math.min(

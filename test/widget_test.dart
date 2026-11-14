@@ -4,15 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:box_breathing_app/main.dart';
 import 'package:box_breathing_app/box_painter.dart';
+import 'package:box_breathing_app/path_painter.dart';
 
 void main() {
   late List<MethodCall> calls;
   String? copiedDiagnostics;
   bool audioFails = false;
+  bool savedPath = false;
   setUp(() {
     calls = [];
     copiedDiagnostics = null;
     audioFails = false;
+    savedPath = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
       if (call.method == 'Clipboard.setData') {
@@ -28,7 +31,9 @@ void main() {
       if (call.method == 'playSound' && audioFails) {
         throw PlatformException(code: 'audioUnavailable');
       }
-      if (call.method == 'info') return {'version': '1.0.0', 'build': '3'};
+      if (call.method == 'info') {
+        return {'version': '1.0.0', 'build': '3', 'pathGuide': savedPath};
+      }
       return null;
     });
   });
@@ -46,6 +51,14 @@ void main() {
       .map((w) => w.painter)
       .whereType<BoxBreathingPainter>()
       .single;
+  Iterable<BreathPathPainter> pathPainters(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(find.byType(CustomPaint))
+      .map((w) => w.painter)
+      .whereType<BreathPathPainter>();
+  Iterable<BoxBreathingPainter> boxPainters(WidgetTester tester) => tester
+      .widgetList<CustomPaint>(find.byType(CustomPaint))
+      .map((w) => w.painter)
+      .whereType<BoxBreathingPainter>();
   Future<void> tap(WidgetTester tester, String text) async {
     await tester.ensureVisible(find.text(text));
     await tester.tap(find.text(text));
@@ -207,6 +220,95 @@ void main() {
         find.text(
             'Sound could not play. Check your output device and volume, then test again.'),
         findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  test('path geometry follows a 4-4-4-4 box breath', () {
+    const box = [4.0, 4.0, 4.0, 4.0];
+    const levels = {
+      0.0: 0.0,
+      1.0: 0.25,
+      2.0: 0.5,
+      4.0: 1.0,
+      6.0: 1.0,
+      8.0: 1.0,
+      10.0: 0.5,
+      12.0: 0.0,
+      14.0: 0.0,
+      16.0: 0.0,
+      18.0: 0.5,
+    };
+    for (final entry in levels.entries) {
+      expect(
+        breathLevel(entry.key, box),
+        closeTo(entry.value, 1e-9),
+        reason: 'level at ${entry.key}s',
+      );
+    }
+    expect(breathElapsed(0, 0, box), 0);
+    expect(breathElapsed(2, 0.5, box), 10);
+    expect(breathLevel(15, const [4.0, 7.0, 8.0, 1.0]), closeTo(0.5, 1e-9));
+    final painter = BreathPathPainter(
+      elapsed: 2,
+      durations: box,
+      lineColor: Colors.white,
+      ballColor: Colors.white,
+      label: 'Inhale',
+      detail: '2',
+      detailColor: Colors.white,
+    );
+    const size = Size(400, 200);
+    final ball = painter.ballOffset(size);
+    expect(ball.dx, closeTo(400 * BreathPathPainter.ballFraction, 1e-9));
+    final top = BreathPathPainter.topFor(size);
+    final bottom = BreathPathPainter.bottomFor(size);
+    expect(ball.dy, closeTo((top + bottom) / 2, 1e-9));
+  });
+  testWidgets('Guide style switches between box and path and is saved',
+      (tester) async {
+    await launch(tester);
+    expect(boxPainters(tester), hasLength(1));
+    expect(pathPainters(tester), isEmpty);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Guide style'), findsOneWidget);
+    await tap(tester, 'Path');
+    await tester.pumpAndSettle();
+    final saved = calls
+        .lastWhere((call) => call.method == 'savePreferences')
+        .arguments as Map;
+    expect(saved['pathGuide'], true);
+    expect(saved['soundEnabled'], true);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(boxPainters(tester), isEmpty);
+    expect(pathPainters(tester), hasLength(1));
+    await tap(tester, 'Begin 4 rounds');
+    await phases(tester, 1);
+    await tester.pump(const Duration(milliseconds: 2000));
+    final path = pathPainters(tester).single;
+    expect(path.durations, [4.0, 4.0, 4.0, 4.0]);
+    expect(path.elapsed, closeTo(6, 0.05));
+    expect(path.label, 'Hold');
+    expect(find.text('0 of 4 rounds complete'), findsOneWidget);
+    await tester.tap(find.byTooltip('Settings'));
+    await tester.pumpAndSettle();
+    await tap(tester, 'Box');
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(boxPainters(tester), hasLength(1));
+    expect(pathPainters(tester), isEmpty);
+    expect(painter(tester).currentStep, 1);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+  testWidgets('a saved path guide is restored at launch', (tester) async {
+    savedPath = true;
+    await launch(tester);
+    await tester.pump();
+    expect(pathPainters(tester), hasLength(1));
+    expect(pathPainters(tester).single.label, 'Ready');
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

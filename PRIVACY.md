@@ -7,10 +7,11 @@ Effective October 27, 2026.
 The app does not collect personal information, use analytics or advertising,
 create accounts, access the microphone, or send breathing sessions to a server.
 There is no saved breathing history. Session progress exists only while the app
-is running. Sound and haptics preferences are saved locally on your device.
+is running. Sound, haptics and guide style preferences are saved locally on
+your device.
 
 The optional Copy diagnostics action copies a small technical snapshot to your
-clipboard: app version/build, current session state, sound/haptics preferences,
+clipboard: app version/build, current session state, sound/haptics/guide preferences,
 audio output type and volume, and playback status. It contains no account or
 device identifiers. Nothing is transmitted by this action. You choose whether
 to share it with someone helping you.
