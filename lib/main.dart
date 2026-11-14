@@ -368,7 +368,7 @@ class _BreathingScreenState extends State<BreathingScreen>
                                       ],
                                       selected: {_pathGuide},
                                       showSelectedIcon: false,
-                                      onSelected: (choice) {
+                                      onSelectionChanged: (choice) {
                                         final path = choice.first;
                                         setState(() => _pathGuide = path);
                                         update(() {});

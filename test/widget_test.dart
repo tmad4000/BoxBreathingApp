@@ -225,7 +225,7 @@ void main() {
   });
   test('path geometry follows a 4-4-4-4 box breath', () {
     const box = [4.0, 4.0, 4.0, 4.0];
-    const levels = {
+    final levels = <double, double>{
       0.0: 0.0,
       1.0: 0.25,
       2.0: 0.5,
