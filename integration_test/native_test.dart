@@ -23,7 +23,7 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     final original = await channel.invokeMapMethod<String, dynamic>('info');
-    expect(original!['version'], '1.0.0');
+    expect(original!['version'], '1.1.0');
     expect(original['build'], isNotEmpty);
     expect(original['idleTimerDisabled'], false);
     final sound = await rootBundle.load('assets/audio/chime.wav');
