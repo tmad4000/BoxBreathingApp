@@ -173,6 +173,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(
         calls.where((call) => call.method == 'playSound').length, before + 1);
+    await tester.scrollUntilVisible(
+      find.text('Version 1.0.0 · Build 3'),
+      200,
+      scrollable: find.byType(Scrollable).last,
+    );
     await tester.ensureVisible(find.text('Version 1.0.0 · Build 3'));
     expect(find.text('Version 1.0.0 · Build 3'), findsOneWidget);
     await tap(tester, 'Copy diagnostics');
