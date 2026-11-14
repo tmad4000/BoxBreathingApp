@@ -67,6 +67,7 @@ import UIKit
           "build": Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "unknown",
           "soundEnabled": preferences.object(forKey: "soundEnabled") as? Bool ?? true,
           "hapticsEnabled": preferences.object(forKey: "hapticsEnabled") as? Bool ?? true,
+          "pathGuide": preferences.object(forKey: "pathGuide") as? Bool ?? false,
           "audioRoute": audio.currentRoute.outputs.map { $0.portType.rawValue },
           "outputVolume": audio.outputVolume,
           "audioCategory": audio.category.rawValue,
@@ -77,7 +78,7 @@ import UIKit
         guard let preferences = call.arguments as? [String: Bool] else {
           result(FlutterError(code: "invalidPreferences", message: "Invalid preferences", details: nil)); return
         }
-        for key in ["soundEnabled", "hapticsEnabled"] {
+        for key in ["soundEnabled", "hapticsEnabled", "pathGuide"] {
           if let value = preferences[key] { UserDefaults.standard.set(value, forKey: key) }
         }
         result(nil)
