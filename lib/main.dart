@@ -56,7 +56,7 @@ class _BreathingScreenState extends State<BreathingScreen>
       _haptics = true,
       _sound = true,
       _pathGuide = false;
-  String _version = "1.0.0", _build = "4";
+  String _version = "1.1.0", _build = "5";
   String? _audioError;
   int _soundGeneration = 0;
   static const _phases = ['Inhale', 'Hold', 'Exhale', 'Hold'];
